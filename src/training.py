@@ -1,7 +1,6 @@
 
 import torch
 
-from transformers import AutoTokenizer
 from peft import LoraConfig
 from trl import SFTConfig, SFTTrainer
 
@@ -19,7 +18,7 @@ def format_for_qwen(example):
     }
 
 
-def tokenize(example):
+def tokenize(example, tokenizer):
     return tokenizer(
         example["text"],
         truncation=True,
@@ -42,7 +41,6 @@ class AgentDataCollator:
         for i, ids in enumerate(batch["input_ids"]):
             full_ids = ids.tolist()
 
-            # Decode current sequence
             text = self.tokenizer.decode(full_ids)
 
             pos = 0
@@ -78,43 +76,44 @@ class AgentDataCollator:
         return batch
 
 
-data_collator = AgentDataCollator(tokenizer)
+def create_trainer(model, tokenizer, tokenized_dataset):
 
+    data_collator = AgentDataCollator(tokenizer)
 
-lora_config = LoraConfig(
-    r=16,
-    lora_alpha=32,
-    target_modules=[
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-    ],
-    lora_dropout=0.05,
-    bias="none",
-    task_type="CAUSAL_LM",
-)
+    lora_config = LoraConfig(
+        r=16,
+        lora_alpha=32,
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+        ],
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
 
+    training_args = SFTConfig(
+        output_dir="./qwen-agent-sft",
+        num_train_epochs=1,
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,
+        #learning_rate=2e-4,
+        learning_rate=5e-5,
+        logging_steps=10,
+        save_steps=100,
+        max_length=512,
+        report_to="none",
+        bf16=True,
+    )
 
-training_args = SFTConfig(
-    output_dir="./qwen-agent-sft",
-    num_train_epochs=1,
-    per_device_train_batch_size=2,
-    gradient_accumulation_steps=4,
-    #learning_rate=2e-4,
-    learning_rate=5e-5,
-    logging_steps=10,
-    save_steps=100,
-    max_length=512,
-    report_to="none",
-    bf16=True,
-)
+    trainer = SFTTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_dataset,
+        processing_class=tokenizer,
+        data_collator=data_collator,
+    )
 
-
-trainer = SFTTrainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_dataset,
-    processing_class=tokenizer,
-    data_collator=data_collator,
-)
+    return trainer
