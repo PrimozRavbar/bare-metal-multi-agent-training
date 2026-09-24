@@ -1,7 +1,6 @@
-
 import torch
 
-from peft import LoraConfig
+from peft import LoraConfig, get_peft_model
 from trl import SFTConfig, SFTTrainer
 
 
@@ -40,9 +39,7 @@ class AgentDataCollator:
 
         for i, ids in enumerate(batch["input_ids"]):
             full_ids = ids.tolist()
-
             text = self.tokenizer.decode(full_ids)
-
             pos = 0
 
             while True:
@@ -52,7 +49,6 @@ class AgentDataCollator:
                     break
 
                 start += len("<|im_start|>assistant\n")
-
                 end = text.find("<|im_end|>", start)
 
                 if end == -1:
@@ -93,6 +89,8 @@ def create_trainer(model, tokenizer, tokenized_dataset):
         bias="none",
         task_type="CAUSAL_LM",
     )
+
+    model = get_peft_model(model, lora_config)
 
     training_args = SFTConfig(
         output_dir="./qwen-agent-sft",
