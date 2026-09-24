@@ -72,7 +72,7 @@ class AgentDataCollator:
         return batch
 
 
-def create_trainer(model, tokenizer, tokenized_dataset):
+def create_trainer(model, tokenizer, tokenized_dataset, output_dir):
 
     data_collator = AgentDataCollator(tokenizer)
 
@@ -93,14 +93,14 @@ def create_trainer(model, tokenizer, tokenized_dataset):
     model = get_peft_model(model, lora_config)
 
     training_args = SFTConfig(
-        output_dir="./qwen-agent-sft",
+        output_dir=output_dir,
         num_train_epochs=1,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=4,
         #learning_rate=2e-4,
         learning_rate=5e-5,
         logging_steps=10,
-        save_steps=100,
+        save_strategy="no",
         max_length=512,
         report_to="none",
         bf16=True,
