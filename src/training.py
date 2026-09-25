@@ -50,12 +50,16 @@ class AgentDataCollator:
                     break
 
                 start += len("<|im_start|>assistant\n")
+
                 end = text.find("<|im_end|>", start)
 
                 if end == -1:
                     break
 
-                assistant_span = text[start:end]
+                # Include <|im_end|> in the supervised target.
+                assistant_span = text[
+                    start:end + len("<|im_end|>")
+                ]
 
                 span_ids = self.tokenizer(
                     assistant_span,
@@ -65,13 +69,16 @@ class AgentDataCollator:
                 for j in range(len(full_ids) - len(span_ids) + 1):
                     if full_ids[j:j + len(span_ids)] == span_ids:
                         labels[i][j:j + len(span_ids)] = (
-                            batch["input_ids"][i][j:j + len(span_ids)]
+                            batch["input_ids"][i][
+                                j:j + len(span_ids)
+                            ]
                         )
                         break
 
-                pos = end
+                pos = end + len("<|im_end|>")
 
         batch["labels"] = labels
+
         return batch
 
 
