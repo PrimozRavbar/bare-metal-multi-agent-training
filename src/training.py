@@ -1,6 +1,7 @@
+
 import torch
 
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, PeftModel
 from trl import SFTConfig, SFTTrainer
 
 
@@ -62,8 +63,10 @@ class AgentDataCollator:
                 )["input_ids"]
 
                 for j in range(len(full_ids) - len(span_ids) + 1):
-                    if full_ids[j:j+len(span_ids)] == span_ids:
-                        labels[i][j:j+len(span_ids)] = batch["input_ids"][i][j:j+len(span_ids)]
+                    if full_ids[j:j + len(span_ids)] == span_ids:
+                        labels[i][j:j + len(span_ids)] = (
+                            batch["input_ids"][i][j:j + len(span_ids)]
+                        )
                         break
 
                 pos = end
@@ -72,32 +75,44 @@ class AgentDataCollator:
         return batch
 
 
-def create_trainer(model, tokenizer, tokenized_dataset, output_dir):
-
+def create_trainer(
+    model,
+    tokenizer,
+    tokenized_dataset,
+    output_dir,
+    lora_path=None,
+):
     data_collator = AgentDataCollator(tokenizer)
 
-    lora_config = LoraConfig(
-        r=16,
-        lora_alpha=32,
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-        ],
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
+    if lora_path is None:
+        lora_config = LoraConfig(
+            r=16,
+            lora_alpha=32,
+            target_modules=[
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+            ],
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
 
-    model = get_peft_model(model, lora_config)
+        model = get_peft_model(model, lora_config)
+
+    else:
+        model = PeftModel.from_pretrained(
+            model,
+            lora_path,
+            is_trainable=True,
+        )
 
     training_args = SFTConfig(
         output_dir=output_dir,
         num_train_epochs=1,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=4,
-        #learning_rate=2e-4,
         learning_rate=5e-5,
         logging_steps=10,
         save_strategy="no",
